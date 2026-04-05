@@ -29,15 +29,19 @@ def apply_time_offset_patch():
             server_now = datetime.now(timezone.utc)
             delta = (real_now - server_now).total_seconds()
             
+            # Agressiv 30 soniyalik offset (buffer)
+            adjusted_delta = delta - 30
+            
             logger.info(f"   - Server UTC: {server_now}")
             logger.info(f"   - Google UTC: {real_now}")
             logger.info(f"   - Farq:       {delta:.1f}s")
+            logger.info(f"   - Adjusted:   {adjusted_delta:.1f}s")
             
             # Patch qo'llash
             import google.auth._helpers
             original_utcnow = google.auth._helpers.utcnow
             def patched_utcnow():
-                return original_utcnow() + timedelta(seconds=delta)
+                return original_utcnow() + timedelta(seconds=adjusted_delta)
             google.auth._helpers.utcnow = patched_utcnow
             logger.info("✅ Time Offset Patch muvaffaqiyatli qo'llanildi!")
             return True

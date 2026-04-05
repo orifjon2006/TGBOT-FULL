@@ -28,16 +28,16 @@ def apply_time_offset_patch():
             server_now = datetime.now(timezone.utc)
             delta = (real_now - server_now).total_seconds()
             
-            if abs(delta) > 5:
-                logger.info(f"🕒 [TimeCompensator] Offset aniqlandi: {delta:.1f}s. Patch qo'llanilmoqda...")
-                import google.auth._helpers
-                original_utcnow = google.auth._helpers.utcnow
-                def patched_utcnow():
-                    return original_utcnow() + timedelta(seconds=delta)
-                google.auth._helpers.utcnow = patched_utcnow
-                logger.info("✅ [TimeCompensator] Google Auth kutubxonasi yamoqlandi.")
-            else:
-                logger.info("✅ [TimeCompensator] Vaqt to'g'ri.")
+            # 30 soniyalik zaxira (buffer) qo'shamiz - bu Google "kelajakdagi token" deb rad etmasligi uchun
+            adjusted_delta = delta - 30
+            
+            logger.info(f"🕒 [TimeCompensator] Offset: {delta:.1f}s. Adjusted: {adjusted_delta:.1f}s. Patch qo'llanilmoqda...")
+            import google.auth._helpers
+            original_utcnow = google.auth._helpers.utcnow
+            def patched_utcnow():
+                return original_utcnow() + timedelta(seconds=adjusted_delta)
+            google.auth._helpers.utcnow = patched_utcnow
+            logger.info("✅ [TimeCompensator] Google Auth kutubxonasi agressiv offset bilan yamoqlandi.")
     except Exception as e:
         logger.warning(f"⚠️ [TimeCompensator] Vaqtni olishda xato: {e}")
 
