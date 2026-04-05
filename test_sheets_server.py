@@ -17,30 +17,32 @@ CREDENTIALS_FILE = "credentials.json"
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
 
 def apply_time_offset_patch():
-    """Server vaqti va haqiqiy vaqt farqini (drift) hisoblab, google-auth kutubxonasini patch qiladi."""
-    logger.info("🕒 1. Vaqt kompensatsiyasini hisoblaymiz...")
+    """Google serveridan aniq vaqtni olib, driftni kompensatsiya qiladi."""
+    logger.info("🕒 1. Vaqt kompensatsiyasini hisoblaymiz (Google orqali)...")
     try:
-        response = requests.get("http://worldtimeapi.org/api/timezone/Etc/UTC", timeout=5)
-        if response.status_code == 200:
-            real_now_str = response.json()['datetime']
-            real_now = datetime.fromisoformat(real_now_str.replace('Z', '+00:00'))
+        # Google-dan vaqtni olamiz
+        res = requests.head("https://www.google.com", timeout=5)
+        google_date_str = res.headers.get('Date')
+        if google_date_str:
+            # Format: 'Sun, 05 Apr 2026 22:30:24 GMT'
+            real_now = datetime.strptime(google_date_str, '%a, %d %b %Y %H:%M:%S GMT').replace(tzinfo=timezone.utc)
             server_now = datetime.now(timezone.utc)
-            delta = real_now - server_now
+            delta = (real_now - server_now).total_seconds()
             
             logger.info(f"   - Server UTC: {server_now}")
-            logger.info(f"   - Real UTC:   {real_now}")
-            logger.info(f"   - Farq:       {delta.total_seconds():.1f}s")
+            logger.info(f"   - Google UTC: {real_now}")
+            logger.info(f"   - Farq:       {delta:.1f}s")
             
             # Patch qo'llash
             import google.auth._helpers
             original_utcnow = google.auth._helpers.utcnow
             def patched_utcnow():
-                return original_utcnow() + timedelta(seconds=delta.total_seconds())
+                return original_utcnow() + timedelta(seconds=delta)
             google.auth._helpers.utcnow = patched_utcnow
-            logger.info("✅ Time Offset Patch qo'llanildi!")
+            logger.info("✅ Time Offset Patch muvaffaqiyatli qo'llanildi!")
             return True
     except Exception as e:
-        logger.error(f"❌ Vaqtni olishda xato: {e}")
+        logger.error(f"❌ Google-dan vaqtni olishda xato: {e}")
     return False
 
 def check_credentials():

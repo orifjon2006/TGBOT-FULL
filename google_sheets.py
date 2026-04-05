@@ -17,33 +17,29 @@ logger = logging.getLogger(__name__)
 # ═══════════════════════════════════════════════════════════════════════════
 
 def apply_time_offset_patch():
-    """Server vaqti va haqiqiy vaqt farqini (drift) hisoblab, google-auth kutubxonasini patch qiladi."""
+    """Google serveridan aniq vaqtni olib, driftni kompensatsiya qiladi."""
     try:
-        # 1. Haqiqiy vaqtni internetdan olamiz
-        response = requests.get("http://worldtimeapi.org/api/timezone/Etc/UTC", timeout=3)
-        if response.status_code == 200:
-            real_now_str = response.json()['datetime']
-            real_now = datetime.fromisoformat(real_now_str.replace('Z', '+00:00'))
+        # 1. Google-dan vaqtni olamiz (u har doim to'g'ri UTC vaqt beradi)
+        res = requests.head("https://www.google.com", timeout=5)
+        google_date_str = res.headers.get('Date')
+        if google_date_str:
+            # Format: 'Mon, 06 Apr 2026 22:30:24 GMT'
+            real_now = datetime.strptime(google_date_str, '%a, %d %b %Y %H:%M:%S GMT').replace(tzinfo=timezone.utc)
             server_now = datetime.now(timezone.utc)
+            delta = (real_now - server_now).total_seconds()
             
-            # Farqni (delta) hisoblaymiz
-            delta = real_now - server_now
-            
-            if abs(delta.total_seconds()) > 10:  # 10 soniyadan ko'p bo'lsa
-                logger.info(f"🕒 [TimeCompensator] Server vaqti farqi aniqlandi: {delta.total_seconds():.1f}s. Patch qo'llanilmoqda...")
-                
-                # Google auth kutubxonasini monkeypatch qilamiz
+            if abs(delta) > 5:
+                logger.info(f"🕒 [TimeCompensator] Offset aniqlandi: {delta:.1f}s. Patch qo'llanilmoqda...")
+                import google.auth._helpers
                 original_utcnow = google.auth._helpers.utcnow
-
                 def patched_utcnow():
-                    return original_utcnow() + timedelta(seconds=delta.total_seconds())
-                
+                    return original_utcnow() + timedelta(seconds=delta)
                 google.auth._helpers.utcnow = patched_utcnow
-                logger.info("✅ [TimeCompensator] Google Auth kutubxonasi vaqt offseti bilan yamoqlandi (patched).")
+                logger.info("✅ [TimeCompensator] Google Auth kutubxonasi yamoqlandi.")
             else:
-                logger.info("✅ [TimeCompensator] Server vaqti to'g'ri (farq < 10s).")
+                logger.info("✅ [TimeCompensator] Vaqt to'g'ri.")
     except Exception as e:
-        logger.warning(f"⚠️ [TimeCompensator] Vaqtni sinxronlashda xato: {e}. Agar loglarda JWT xatosi bo'lsa server soatini to'g'rilang.")
+        logger.warning(f"⚠️ [TimeCompensator] Vaqtni olishda xato: {e}")
 
 # Modul yuklanganda patchni qo'llaymiz
 apply_time_offset_patch()
