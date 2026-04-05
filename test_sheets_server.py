@@ -1,8 +1,13 @@
-from datetime import datetime, timedelta, timezone
+import os
+import json
+import gspread
+import logging
 import requests
+from google.oauth2.service_account import Credentials
+from datetime import datetime, timedelta, timezone
 
 # ═══════════════════════════════════════════════════════════════════════════
-#  DIAGNOSTIKA — Server vaqti va Google API ulanishini tekshirish
+#  DIAGNOSTIKA — Google Sheets Professional Fix (Time Offset Patch bilan)
 # ═══════════════════════════════════════════════════════════════════════════
 
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
@@ -63,9 +68,9 @@ def check_credentials():
         logger.error(f"❌ Avtorizatsiyada hali ham xatolik: {e}")
 
 if __name__ == "__main__":
-    print("\n--- GOOGLE SHEETS SERVER DIAGNOSTICS (WITH PATCH) ---\n")
+    print("\n--- GOOGLE SHEETS SERVER DIAGNOSTICS (FULL FIX) ---\n")
     if apply_time_offset_patch():
         check_credentials()
     else:
-        print("🛑 Vaqtni internetdan olib bo'lmagani uchun diagnostika tugatildi.")
-    print("\n-----------------------------------------------------\n")
+        print("🛑 Vaqtni olib bo'lmagani uchun diagnostika tugatildi.")
+    print("\n----------------------------------------------------\n")
