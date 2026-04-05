@@ -7,6 +7,7 @@ from typing import List, Optional
 
 import gspread
 from google.oauth2.service_account import Credentials
+import config
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +23,8 @@ class GoogleSheetsManager:
     def __init__(self):
         self.credentials_path = CREDENTIALS_FILE
         self.client: Optional[gspread.Client] = None
+        self.sheet_id = config.GOOGLE_SHEET_ID
+        self.share_email = config.GOOGLE_SHEET_SHARE_EMAIL
 
     def get_client(self) -> Optional[gspread.Client]:
         if self.client:
@@ -38,7 +41,10 @@ class GoogleSheetsManager:
             self.client = gspread.authorize(credentials)
             return self.client
         except Exception as e:
-            logger.error(f"🛑 [GoogleSheets] API avtorizatsiyada xatolik: {e}", exc_info=True)
+            if "Invalid JWT Signature" in str(e):
+                logger.error("🛑 [GoogleSheets] VAQT XATOLIGI! Server vaqti noto'g'ri. JWT Signature rad etildi.")
+            else:
+                logger.error(f"🛑 [GoogleSheets] API avtorizatsiyada xatolik: {e}", exc_info=True)
             return None
 
     def get_or_create_spreadsheet(self) -> Optional[gspread.Spreadsheet]:
@@ -46,26 +52,31 @@ class GoogleSheetsManager:
         if not client:
             return None
 
-        # 1. Jadvalni nomi bo'yicha qidirib ko'ramiz
+        # 1. ID orqali ochish (Eng ishonchli usul)
+        if self.sheet_id:
+            try:
+                sh = client.open_by_key(self.sheet_id)
+                logger.info(f"✅ [GoogleSheets] Jadval ID orqali ochildi: {self.sheet_id}")
+                return sh
+            except Exception as e:
+                logger.error(f"🛑 [GoogleSheets] ID orqali ochishda xato ({self.sheet_id}): {e}")
+
+        # 2. Nomi bo'yicha qidirib ko'ramiz
         try:
             sh = client.open(SPREADSHEET_TITLE)
             return sh
         except gspread.exceptions.SpreadsheetNotFound:
             logger.info(f"Yangi jadval yaratilmoqda: '{SPREADSHEET_TITLE}'...")
             try:
-                # Yangi yaratamiz
                 sh = client.create(SPREADSHEET_TITLE)
                 
-                # O'zimizga yana tahrir ruxsatini berib qo'yamiz (client_email)
-                with open(self.credentials_path, 'r') as f:
-                    creds_data = json.load(f)
-                    client_email = creds_data.get('client_email')
-                    
-                if client_email:
+                # Foydalanuvchiga ruxsat berish (Email orqali)
+                if self.share_email:
                     try:
-                        sh.share(client_email, perm_type='user', role='writer')
-                    except Exception as e:
-                        logger.warning(f"Share qilishda xatolik (davom etamiz): {e}")
+                        sh.share(self.share_email, perm_type='user', role='writer', notify=True)
+                        logger.info(f"✅ Jadval '{self.share_email}' bilan ulashildi.")
+                    except Exception as share_err:
+                        logger.warning(f"⚠️ Share qilishda xato: {share_err}")
 
                 # Birinchi listni chiroyli qilib sozlaymiz
                 sheet = sh.get_worksheet(0)
@@ -78,7 +89,7 @@ class GoogleSheetsManager:
                     "backgroundColor": {"red": 0.1, "green": 0.5, "blue": 0.8},
                     "horizontalAlignment": "CENTER"
                 })
-                logger.info(f"✅ Jadval yaratildi. Link: {sh.url}")
+                logger.info(f"✅ Yangi jadval yaratildi: {sh.url}")
                 return sh
             except Exception as e:
                 logger.error(f"🛑 [GoogleSheets] Jadval yaratib bo'lmadi: {e}", exc_info=True)

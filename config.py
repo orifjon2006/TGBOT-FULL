@@ -15,6 +15,10 @@ BOT_TOKEN: str = os.getenv("BOT_TOKEN", "")
 MAIN_ADMIN_TELEGRAM_ID: int = int(os.getenv("MAIN_ADMIN_TELEGRAM_ID", "0"))
 COMPLETION_REPORT_CHAT_ID: int = int(os.getenv("COMPLETION_REPORT_CHAT_ID", os.getenv("WORK_REPORT_GROUP_ID", "0")))
 
+# Google Sheets
+GOOGLE_SHEET_ID: str = os.getenv("GOOGLE_SHEET_ID", "")
+GOOGLE_SHEET_SHARE_EMAIL: str = os.getenv("GOOGLE_SHEET_SHARE_EMAIL", "")
+
 # ═══════════════════════════════════════════════════════════════════════════
 #  Kompaniya ma'lumotlari
 # ═══════════════════════════════════════════════════════════════════════════
