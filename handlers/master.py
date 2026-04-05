@@ -302,9 +302,9 @@ async def master_recv_video(msg: Message, state: FSMContext, bot: Bot) -> None:
         try:
             import asyncio
             from google_sheets import complete_order_in_sheet
-            from datetime import datetime
+            from datetime import datetime, timedelta
             
-            c_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            c_time = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d %H:%M:%S")
             asyncio.create_task(asyncio.to_thread(complete_order_in_sheet, str(order.id), c_time))
         except Exception as e:
             import logging

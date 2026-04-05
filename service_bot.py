@@ -8,7 +8,7 @@ import asyncio
 import logging
 import sqlite3
 import aiosqlite
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from google_sheets import append_order_to_sheet
 
@@ -437,8 +437,8 @@ async def finalize_order(call: CallbackQuery):
     # Savatni tozalaymiz
     await clear_cart(user["id"])
     
-    # ----- Yangi qo'shilgan qism: Google Sheets ga yozish -----
-    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    # ----- Yangi qo'shilgan qism: Google Sheets ga yozish (Sana +1 kun qilingan) -----
+    current_time = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d %H:%M:%S")
     order_data = [
         str(order_id),
         user['full_name'],

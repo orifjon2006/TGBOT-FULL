@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 import asyncio
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -700,8 +700,8 @@ async def confirm_and_save(cb: CallbackQuery, state: FSMContext, bot: Bot) -> No
             g_masters = group_masters_res.scalars().all()
             masters_str = ", ".join(m.full_name for m in g_masters) if g_masters else "Ustalar kiritilmagan"
             
-            # --- GOOGLE SHEETS SYNC ---
-            current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            # --- GOOGLE SHEETS SYNC (Sana +1 kun qilingan) ---
+            current_time = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d %H:%M:%S")
             services_str = ", ".join(service_names)
             order_data = [
                 str(order.id),
