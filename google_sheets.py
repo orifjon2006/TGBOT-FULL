@@ -1,15 +1,52 @@
-"""Google Sheets bilan ishlash uchun professional modul."""
-
 import os
 import json
 import logging
 from typing import List, Optional
+from datetime import datetime, timedelta, timezone
 
 import gspread
 from google.oauth2.service_account import Credentials
+import google.auth._helpers  # Monkeypatching uchun kerak
+import requests
 import config
 
 logger = logging.getLogger(__name__)
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  🕒 TIME OFFSET COMPENSATOR — Server vaqti xatoligini to'g'rilash
+# ═══════════════════════════════════════════════════════════════════════════
+
+def apply_time_offset_patch():
+    """Server vaqti va haqiqiy vaqt farqini (drift) hisoblab, google-auth kutubxonasini patch qiladi."""
+    try:
+        # 1. Haqiqiy vaqtni internetdan olamiz
+        response = requests.get("http://worldtimeapi.org/api/timezone/Etc/UTC", timeout=3)
+        if response.status_code == 200:
+            real_now_str = response.json()['datetime']
+            real_now = datetime.fromisoformat(real_now_str.replace('Z', '+00:00'))
+            server_now = datetime.now(timezone.utc)
+            
+            # Farqni (delta) hisoblaymiz
+            delta = real_now - server_now
+            
+            if abs(delta.total_seconds()) > 10:  # 10 soniyadan ko'p bo'lsa
+                logger.info(f"🕒 [TimeCompensator] Server vaqti farqi aniqlandi: {delta.total_seconds():.1f}s. Patch qo'llanilmoqda...")
+                
+                # Google auth kutubxonasini monkeypatch qilamiz
+                original_utcnow = google.auth._helpers.utcnow
+
+                def patched_utcnow():
+                    return original_utcnow() + timedelta(seconds=delta.total_seconds())
+                
+                google.auth._helpers.utcnow = patched_utcnow
+                logger.info("✅ [TimeCompensator] Google Auth kutubxonasi vaqt offseti bilan yamoqlandi (patched).")
+            else:
+                logger.info("✅ [TimeCompensator] Server vaqti to'g'ri (farq < 10s).")
+    except Exception as e:
+        logger.warning(f"⚠️ [TimeCompensator] Vaqtni sinxronlashda xato: {e}. Agar loglarda JWT xatosi bo'lsa server soatini to'g'rilang.")
+
+# Modul yuklanganda patchni qo'llaymiz
+apply_time_offset_patch()
 
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
