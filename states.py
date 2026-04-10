@@ -66,6 +66,7 @@ class LicenseStates(StatesGroup):
     waiting_vin = State()
     waiting_client_name = State()
     waiting_client_phone = State()
+    waiting_application_number = State()
 
 
 class LicenseSearchStates(StatesGroup):

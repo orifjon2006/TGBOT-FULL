@@ -176,6 +176,7 @@ class License(Base):
     applied_date: Mapped[str] = mapped_column(String(255))
     issuance_date: Mapped[str] = mapped_column(String(255))
     order_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, index=True)
+    application_number: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     created_at: Mapped[DateTime] = mapped_column(DateTime, server_default=func.now())
 
 
@@ -924,6 +925,7 @@ class LicenseRepository:
         client_name: str = "",
         client_phone: str = "",
         order_id: Optional[int] = None,
+        application_number: Optional[str] = None,
     ) -> License:
         item = License(
             vin_code=vin_code,
@@ -932,6 +934,7 @@ class LicenseRepository:
             client_name=client_name,
             client_phone=client_phone,
             order_id=order_id,
+            application_number=application_number,
         )
         self._session.add(item)
         await self._session.flush()
@@ -954,11 +957,15 @@ class LicenseRepository:
         )
         await self._session.flush()
 
-    async def search_by_vin_partial(self, vin_part: str) -> list[License]:
-        from sqlalchemy import select
-        # Oxirgi qismini yoki o'rtasini qidirish (likening operatori bilan)
+    async def search_by_vin_partial(self, search_val: str) -> list[License]:
+        from sqlalchemy import select, or_
         res = await self._session.execute(
-            select(License).where(License.vin_code.ilike(f"%{vin_part}%"))
+            select(License).where(
+                or_(
+                    License.vin_code.ilike(f"%{search_val}%"),
+                    License.application_number.ilike(f"%{search_val}%")
+                )
+            )
         )
         return list(res.scalars().all())
 
@@ -1027,6 +1034,7 @@ async def init_db() -> None:
         await _add_column_if_missing(conn, "orders", "updated_at", "DATETIME")
         await _add_column_if_missing(conn, "active_jobs", "started_at", "DATETIME")
         await _add_column_if_missing(conn, "licenses", "order_id", "INTEGER")
+        await _add_column_if_missing(conn, "licenses", "application_number", "VARCHAR(50)")
 
     async with session_scope() as session:
         vehicle_repo = VehicleModelRepository(session)

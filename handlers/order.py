@@ -253,7 +253,7 @@ async def ask_services(msg: Message, state: FSMContext) -> None:
     await state.set_state(OrderStates.waiting_services)
     m1 = await msg.answer("🛠 Xizmatlarni tanlang:", reply_markup=ReplyKeyboardRemove())
     m2 = await msg.answer(
-        "Oddiy xizmat bir bosishda qo'shiladi.\n📂 belgisi — ichki bo'limlar mavjud.",
+        "Oddiy xizmat bir bosishda qo'shiladi.\n📂 belgisi — ichki bo'limlar mavjud.\n✏️ Yoki xizmat nomini qo'lda kiritishingiz mumkin.",
         reply_markup=service_root_kb(labels),
     )
     await track_prompt(state, m1, m2)
@@ -541,6 +541,25 @@ async def service_done(cb: CallbackQuery, state: FSMContext) -> None:
     await ask_total_amount(cb.message, state)
 
 
+@router.message(OrderStates.waiting_services)
+async def process_manual_service(message: Message, state: FSMContext) -> None:
+    text = (message.text or "").strip()
+    if not text:
+        return
+        
+    await clear_chat_history(message, state, True)
+    
+    ok, msg_text = await add_service_to_state(state, text)
+    data = await state.get_data()
+    labels = data.get("selected_service_labels", [])
+    
+    m = await message.answer(
+        f"{msg_text}\n\nJami tanlangan: {len(labels)} ta\n\nYana xizmat nomini qo'lda kiritishingiz yoki tugmalardan tanlashingiz mumkin.", 
+        reply_markup=service_root_kb(labels)
+    )
+    await track_prompt(state, m)
+
+
 @router.callback_query(F.data == "ord:back:vin")
 async def back_to_vin(cb: CallbackQuery, state: FSMContext) -> None:
     await cb.answer()
@@ -762,7 +781,6 @@ async def confirm_and_save(cb: CallbackQuery, state: FSMContext, bot: Bot) -> No
 # ═══════════════════════════════════════════════════════════════════════════
 
 @router.message(OrderStates.waiting_vehicle_model)
-@router.message(OrderStates.waiting_services)
 @router.message(OrderStates.waiting_van_height)
 @router.message(OrderStates.waiting_group)
 @router.message(OrderStates.waiting_confirm)

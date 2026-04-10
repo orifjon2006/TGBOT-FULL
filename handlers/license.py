@@ -29,6 +29,7 @@ def license_info_text(lic, order_num: str = None) -> str:
         f"🔢 <b>VIN Kod:</b> <code>{lic.vin_code}</code>\n"
         f"👤 <b>Mijoz:</b> {lic.client_name or '—'}\n"
         f"📞 <b>Telefon:</b> {lic.client_phone or '—'}\n"
+        f"📩 <b>Ariza raqami:</b> <code>{lic.application_number or '—'}</code>\n"
         f"📥 <b>Topshirilgan:</b> {lic.applied_date}\n"
         f"📤 <b>Tayyor bo'ladi:</b> <b>{lic.issuance_date}</b>"
     )
@@ -215,9 +216,29 @@ async def back_from_phone(message: Message, state: FSMContext):
 @router.message(LicenseStates.waiting_client_phone)
 async def process_phone(message: Message, state: FSMContext):
     phone = (message.text or "").strip()
+    await state.update_data(phone=phone)
+    await state.set_state(LicenseStates.waiting_application_number)
+    await message.answer("📩 Ariza raqamini kiriting:", reply_markup=back_cancel_kb())
+
+
+@router.message(LicenseStates.waiting_application_number, F.text == BTN_BACK)
+async def back_from_app_number(message: Message, state: FSMContext):
+    await state.set_state(LicenseStates.waiting_client_phone)
+    data = await state.get_data()
+    phone = data.get("phone", "")
+    if phone:
+        await message.answer(f"📞 Mijoz telefon raqamini kiriting/tasdiqlang (eski qiymat: {phone}):", reply_markup=back_cancel_kb())
+    else:
+        await message.answer("📞 Mijoz telefon raqamini kiriting:", reply_markup=back_cancel_kb())
+
+
+@router.message(LicenseStates.waiting_application_number)
+async def process_application_number(message: Message, state: FSMContext):
+    app_num = (message.text or "").strip()
     data = await state.get_data()
     vin = data.get("vin")
     name = data.get("name")
+    phone = data.get("phone")
     order_id = data.get("order_id")
 
     applied, issuance = get_issue_dates()
@@ -230,11 +251,12 @@ async def process_phone(message: Message, state: FSMContext):
             issuance_date=issuance,
             client_name=name,
             client_phone=phone,
-            order_id=order_id
+            order_id=order_id,
+            application_number=app_num
         )
 
-    # Google Sheets: [VIN, Name, Phone, Applied, Issued, Order#]
-    sheet_data = [vin, name, phone, applied, issuance, str(order_id or "—")]
+    # Google Sheets: [VIN, Name, Phone, Applied, Issued, Order#, ApplicationNum]
+    sheet_data = [vin, name, phone, applied, issuance, str(order_id or "—"), app_num]
     asyncio.create_task(asyncio.to_thread(append_license_to_sheet, sheet_data))
 
     _is_main = await is_main_admin(message.from_user.id)
@@ -253,7 +275,7 @@ async def process_phone(message: Message, state: FSMContext):
 async def start_check_license(message: Message, state: FSMContext):
     await state.clear()
     await state.set_state(LicenseSearchStates.waiting_search_vin)
-    await message.answer("🔎 Litsenziyani tekshirish.\n\nAvtomobil VIN kodini (oxirgi 6 ta raqamini ham bo'ladi) kiriting:", reply_markup=back_cancel_kb())
+    await message.answer("🔎 Litsenziyani tekshirish.\n\nAvtomobil VIN kodini (yoki uning oxirgi qismini) yoki Ariza raqamini kiriting:", reply_markup=back_cancel_kb())
 
 
 @router.message(LicenseSearchStates.waiting_search_vin, F.text == BTN_BACK)
@@ -278,7 +300,7 @@ async def process_search_vin(message: Message, state: FSMContext):
         if is_adm and len(search_val) >= 7:
             builder = InlineKeyboardBuilder()
             builder.button(text="📝 Yangi litsenziya qo'shish", callback_data=f"lic:create_vin:{search_val}")
-            await message.answer(f"❌ <b>{search_val}</b> bo'yicha hech narsa topilmadi.\nYangi qo'shasizmi?", reply_markup=builder.as_markup())
+            await message.answer(f"❌ <b>{search_val}</b> bo'yicha hech narsa topilmadi.\n(Xohlasangiz buni VIN deb qabul qilib, yangi litsenziya qo'shishingiz mumkin)", reply_markup=builder.as_markup())
         else:
             await message.answer("❌ Hech narsa topilmadi. Qayta urinib ko'ring.", reply_markup=main_menu_kb(_is_main))
         return
